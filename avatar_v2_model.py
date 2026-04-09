@@ -6,6 +6,7 @@
 import json
 from pathlib import Path
 from datetime import datetime
+from PIL import Image, ImageTk
 import avatar_v2_exceptions as e
 
 class Model:
@@ -14,23 +15,23 @@ class Model:
         self.database = database
         self.selected_assets = self.set_selected_assets()
 
-    def set_selected_assets(self, selected_assets: dict = None) -> dict:
+    def set_selected_assets(self, selected_input: dict = None) -> dict:
         ''' Receives a dictionary to be stored in self.selected_assets, processes them in a new
             dictionary storage which arranges them in a specific order, and returns the new
             dictionary to be stored in self.selected_assets. '''
-        asset_dict = {}
-        if selected_dict is not None:
-            selected_dict = selected_assets.copy()
-            asset_dict = {
+        processed_data = {}
+        if selected_input is not None:
+            selected_dict = selected_input.copy()
+            processed_data = {
                 "brows": "",
                 "eyes": "",
                 "mouth": "",
                 "mood": "" }
-            for asset_key in asset_dict:
+            for processed_key in processed_data:
                 for selected_key, selected_value in selected_dict.items():
-                    if asset_key == selected_key:
-                        asset_dict[asset_key] = selected_value
-        return asset_dict
+                    if processed_key == selected_key:
+                        processed_key[processed_data] = selected_value
+        return processed_data
 
     def save_configurations_to_database(self):
         ''' Calls a method to check if the configuration is already and appropriately raises an
@@ -68,9 +69,8 @@ class Database:
 
     @e.catch_file_handling_exceptions
     def check_directories(self) -> Path:
-        ''' Checks if directories "storage", "database", and "resources" exists, otherwise creates
-            them or raises and exception. Returns database_dirpath to be stored in the
-            constructor. '''
+        ''' Checks if directories "storage", and "database" exists, otherwise creates them. Returns
+            database_dirpath to be stored in the constructor. '''
         directory_path = Path(__file__).resolve().parent
 
         # checks if "storage" directory exists
@@ -82,12 +82,6 @@ class Database:
         database_dirpath = storage_dirpath / "database"
         if not database_dirpath.exists():
             database_dirpath.mkdir(parents=True, exist_ok=True)
-
-        # checks if "resources" directory exists, otherwise raises FileNotFoundError
-        recourses_dirpath = storage_dirpath / "resources"
-        if not recourses_dirpath.exists():
-            raise e.ResourcesDirectoryNotFound()
-
         return database_dirpath
 
     @e.catch_file_handling_exceptions
@@ -116,3 +110,122 @@ class Database:
         old_content[date_saved] = data
         with open(self.database_filepath, 'w', encoding="utf-8") as file:
             json.dump(old_content, file, indent=4)
+
+class Resources:
+    ''' Handles processing of ".png" files in "resources" directory into a PIL object, store them
+        in dictionaries that will be used in the GUI '''
+    def __init__(self):
+        self.icons = self.check_resources_dir()
+
+    def check_resources_dir(self):
+        ''' Checks if "resources" folder exists within the "storage" directory, and processes
+            the folders within it, otherwise raises a custom exception. '''
+        recourses_dirpath = Path(__file__).resolve().parent / "storage" / "resources"
+        if recourses_dirpath.exists():
+            try:
+                for folder in recourses_dirpath.iterdir():
+                    if folder.is_dir():
+                        if folder.name == "icons":
+                            icons_dict = self.check_icons_dir()
+                            # calls method that processes icons
+                        if folder.name == "backgrounds":
+                            self.check_backgrounds_dir()
+                            # calls method that processes backgrounds
+                        if folder.name == "assets":
+                            self.check_assets_dir()
+                            # calls method that processes assets
+            except FileNotFoundError as error:
+                message_1 = "FileNotFoundError occured in function check_resources_dir():"
+                message_2 = "No folders found inside 'resources' directory."
+                raise FileNotFoundError( message_1 + "\n" + message_2 ) from error
+            except PermissionError as error:
+                message_1 = "PermissionError occured in function check_resources_dir:"
+                message_2 = "Attempting to access protected folder."
+                raise PermissionError( message_1 + "\n" + message_2 ) from error
+        else:
+            raise e.ResourcesDirectoryNotFound()
+        return icons_dict
+
+    def check_icons_dir(self):
+        ''' Checks if "icons" folder exists within the resources directory, and prcoesses its
+            contents before returning it, otherwise raises FileNotFoundError. '''
+        dir_path = Path(__file__).resolve().parent / "storage" / "resources" / "icons"
+        icons_dict = {}
+        if dir_path.exists():
+            try:
+                for folder in dir_path.iterdir():
+                    if folder.is_dir():
+                        icons_dict[folder.name] = {}
+                        for image in folder.glob("*.png"):
+                            this_image = Image.open(image)
+                            image_obj = ImageTk.PhotoImage(this_image)
+                            icons_dict[folder.name][image.name] = image_obj
+            except FileNotFoundError as error:
+                message_1 = "FileNotFoundError occured in function check_icons_dir():"
+                message_2 = "No folders found inside 'icons' directory. "
+                raise FileNotFoundError(message_1 + "\n" + message_2) from error
+        else:
+            message_1 = "FileNotFoundError occured in function check_icons_dir():"
+            message_2 = "'icons' directory not found."
+            raise FileNotFoundError(message_1 + "\n" + message_2)
+        return icons_dict
+
+    def check_backgrounds_dir(self):
+        ''' Checks if "backgrounds" folder exists within the resources directory, and prcoesses its
+            contents before returning it, otherwise raises FileNotFoundError. '''
+        dir_path = Path(__file__).resolve().parent / "storage" / "resources" / "backgrounds"
+        backgrounds_dict = {}
+        if dir_path.exists():
+            try:
+                for folder in dir_path.iterdir():
+                    if folder.is_dir():
+                        backgrounds_dict[folder.name] = {}
+                        for image in folder.glob("*.png"):
+                            this_image = Image.open(image)
+                            image_obj = ImageTk.PhotoImage(this_image)
+                            backgrounds_dict[folder.name][image.name] = image_obj
+            except FileNotFoundError as error:
+                message_1 = "FileNotFoundError occured in function check_backgrounds_dir():"
+                message_2 = "No folders found inside 'backgrounds' directory. "
+                raise FileNotFoundError(message_1 + "\n" + message_2) from error
+        else:
+            message_1 = "FileNotFoundError occured in function check_backgrounds_dir():"
+            message_2 = "'backgrounds' directory not found."
+            raise FileNotFoundError(message_1 + "\n" + message_2)
+        return backgrounds_dict
+
+    def check_assets_dir(self):
+        ''' Checks if "assets" folder exists within the resources directory, and prcoesses its
+            contents before returning it, otherwise raises FileNotFoundError. '''
+        dir_path = Path(__file__).resolve().parent / "storage" / "resources" / "assets"
+        images_dict = {}
+        icons_dict = {}
+        if dir_path.exists():
+            try:
+                for folder in dir_path.iterdir():
+                    if folder.is_dir() and folder.name == "images":
+                        for inner_folder in folder.iterdir():
+                            if inner_folder.is_dir():
+                                images_dict[inner_folder.name] = {}
+                                for image in inner_folder.glob("*.png"):
+                                    this_image = Image.open(image)
+                                    image_obj = ImageTk.PhotoImage(this_image)
+                                    images_dict[inner_folder.name][image.name] = image_obj
+                    if folder.is_dir() and folder.name == "icons":
+                        for inner_folder in folder.iterdir():
+                            if inner_folder.is_dir():
+                                icons_dict[inner_folder.name] = {}
+                                for image in inner_folder.glob("*.png"):
+                                    this_image = Image.open(image)
+                                    image_obj = ImageTk.PhotoImage(this_image)
+                                    icons_dict[inner_folder.name][image.name] = image_obj
+            except FileNotFoundError as error:
+                message_1 = "FileNotFoundError occured in function check_assets_dir():"
+                message_2 = "No folders / specific folder found inside 'assets' directory."
+                raise FileNotFoundError(message_1 + "\n" + message_2) from error
+        else:
+            message_1 = "FileNotFoundError occured in function check_assets_dir():"
+            message_2 = "'icons' directory not found."
+            raise FileNotFoundError(message_1 + "\n" + message_2)
+        return images_dict, icons_dict
+    # ^ too many nested blocks, will refactor later

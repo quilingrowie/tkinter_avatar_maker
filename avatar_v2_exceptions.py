@@ -6,23 +6,23 @@ def catch_file_handling_exceptions(function):
     ''' A decorator function that catches errors on file handling methods/functions. '''
     def wrapper(*args, **kwargs):
         try:
-            function(*args, **kwargs)
+            return function(*args, **kwargs)
         except FileNotFoundError as error:
-            print(f"FileNotFoundError occured in function {function.__name__}:")
-            print("Attempting to access a file or directory that does not exist.")
-            print(f"Error: {error}")
+            raise FileNotFoundError(
+                f"FileNotFoundError occured in function {function.__name__}:\n{error}"
+                ) from error
         except PermissionError as error:
-            print(f"PermissionError occured in {function.__name__}:")
-            print("Attempting to perform operations that does not meet user permissions.")
-            print(f"Error: {error}")
+            raise PermissionError(
+                f"PermissionError occured in {function.__name__}:\n{error}"
+            ) from error
         except NotADirectoryError as error:
-            print(f"NotADirectoryError occured in {function.__name__}:")
-            print("Attempting to do directory-only operations on a file.")
-            print(f"Error: {error}")
+            raise NotADirectoryError(
+                f"NotADirectoryError occured in {function.__name__}:\n{error}"
+            ) from error
         except IsADirectoryError as error:
-            print(f"IsADirectoryError occured in {function.__name__}:")
-            print("Attempting to do a file-only operations on a directory.")
-            print(f"Error: {error}")
+            raise IsADirectoryError(
+                f"IsADirectoryError occured in {function.__name__}:\n{error}"
+            ) from error
     return wrapper
 
 class CustomExceptions(Exception):
@@ -30,7 +30,6 @@ class CustomExceptions(Exception):
     def __init__(self, message):
         self.message = message
         super().__init__(self.message)
-
     def __str__(self):
         return f"Unable to run the program:\n{self.message}"
 
