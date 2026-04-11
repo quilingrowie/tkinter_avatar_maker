@@ -16,38 +16,41 @@ class Model:
     def __init__(self, database, resources):
         self.database = database
         self.resources = resources
-        (self.selected_assets, self.loaded_assets) = self.set_selected_assets()
+        self.update_selected_assets()
 
-    def set_selected_assets(self, selected_input: dict = None) -> tuple[dict, dict]:
-        ''' Receives a dictionary of selected input, re-stores its values in a
-            specific order in a new dictionary, calls a method to load their corresponding
-            PIL object, and returns two dictionaries. '''
-        processed_data = {}
+    def set_selected_assets(self, selected_input: dict = None) -> dict:
+        ''' Receives a dictionary of selected input, re-stores its values in a specific order in
+            a new dictionary, and returns the new dictionary. '''
+        processed_data = {
+            "brows": "",
+            "eyes": "",
+            "mouth": "",
+            "mood": "" }
         if selected_input is not None:
             selected_dict = selected_input.copy()
-            processed_data = {
-                "brows": "",
-                "eyes": "",
-                "mouth": "",
-                "mood": "" }
             for processed_key in processed_data:
                 for selected_key, selected_value in selected_dict.items():
                     if processed_key == selected_key:
                         processed_data[processed_key] = selected_value
-
-        loaded_group = self.load_selected_assets()
-
-        return processed_data, loaded_group
+        return processed_data
 
     def load_selected_assets(self) -> dict:
-        ''' When called, reads self.selected_assets and accesses its corresponding PIL object.
-            Stores selected assets with its PIL objects in a dictionary and returns it. '''
+        ''' Reads self.selected_assets and accesses its corresponding PIL object. Stores selected
+            assets with its PIL objects in a dictionary and returns it. '''
         selected_dict = self.selected_assets.copy()
         loaded_group = {}
         for key, value in selected_dict.items():
-            loaded_obj = self.resources.asset_images[key][value]
-            loaded_group[key][value] = loaded_obj
+            if value == "":
+                loaded_group[key] = ""
+            else:
+                loaded_obj = self.resources.assets_images[key][value]
+                loaded_group[key] = loaded_obj
         return loaded_group
+
+    def update_selected_assets(self, selected_input: dict = None):
+        ''' Lets self.selected_assets and self.loaded_assets update its contents in parallel. '''
+        self.selected_assets = self.set_selected_assets(selected_input)
+        self.loaded_assets = self.load_selected_assets()
 
     def save_configurations_to_database(self):
         ''' Calls a method to check if the configuration is already and appropriately raises an
@@ -66,12 +69,8 @@ class Model:
     def is_configuration_already_saved(self) -> bool:
         ''' Checks if the configurations stored in self.selected_assets is already saved
             in the database and returns boolean accordingly.'''
-        # creates workable copy of data
-        selected_assets = self.selected_assets.copy()
-        saved_data = self.database.saved_data.copy()
-
-        if len(selected_assets) != 0:
-            if selected_assets in saved_data.values():
+        if any(value != "" for value in self.selected_assets.values()):
+            if self.selected_assets in self.database.saved_data.values():
                 return True
             return False
         return None
@@ -140,11 +139,13 @@ class Database:
     @e.catch_file_handling_exceptions
     def write_in_database(self, date_saved: str, data: dict):
         ''' Receives string "date_saved" and dictionary "data", and creates a new key (saved_date)
-            and value (data) to be appended and saved in the JSON database. '''
+            and value (data) to be appended and saved in the JSON database. Updates self.saved_data
+            with the updated JSON file. '''
         old_content = self.saved_data.copy()
         old_content[date_saved] = data
         with open(self.database_filepath, 'w', encoding="utf-8") as file:
             json.dump(old_content, file, indent=4)
+        self.saved_data = self.read_database()
 
 class Resources:
     ''' Handles processing of ".png" files in "resources" directory into a PIL object, store them
@@ -165,23 +166,22 @@ class Resources:
     def process_resources_dir(self) -> tuple[dict, dict, dict, dict]:
         ''' Processes the folders "icons", "backgrounds", "assets" within "resources" directory,
             otherwise raises a custom exception. '''
-        icons_dict = self.process_dir_contents("icons")
-        background_dict = self.process_dir_contents("backgrounds")
+        icons_dict = self.process_dir_contents(self.resources_dirpath / "icons")
+        background_dict = self.process_dir_contents(self.resources_dirpath / "backgrounds")
         asset_images_dict, asset_icons_dict = self.check_assets_dir()
         return icons_dict, background_dict, asset_images_dict, asset_icons_dict
 
-    def process_dir_contents(self, this_dir:Path) -> dict:
+    def process_dir_contents(self, this_dir: Path) -> dict:
         ''' Checks if the specified directory exists inside "resources" directory
             and processes its png files into PIL objects, stores them in a dictionary, and
             returns them. '''
-        dir_path = self.resources_dirpath / this_dir
-        if not dir_path.exists():
+        if not this_dir.exists():
             raise FileNotFoundError(
                 "FileNotFoundError occured in function process_dir_contents():\n"+
                 f"No folder {this_dir} found inside 'resources' directory."
             )
         processed_group = {}
-        for folder in dir_path.iterdir():
+        for folder in this_dir.iterdir():
             if folder.is_dir():
                 processed_group[folder.name] = {}
                 for item in folder.glob("*.png"):
@@ -200,6 +200,6 @@ class Resources:
                 "FileNotFoundError occured in function check_assets_dir():\n"
                 "'assets' directory not found."
             )
-        images_dict = self.process_dir_contents("assets" / "images")
-        icons_dict = self.process_dir_contents("assets" / "icons")
+        images_dict = self.process_dir_contents(dir_path / "images")
+        icons_dict = self.process_dir_contents(dir_path / "icons")
         return images_dict, icons_dict
