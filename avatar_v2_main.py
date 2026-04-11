@@ -10,17 +10,11 @@
     Author: Rowie Quiling
 '''
 from avatar_v2_controller import Controller
+from avatar_v2_model import Model, Database, Resources
+
 if __name__ == "__main__":
-    try:
-        Controller()
-    except IndexError as e:
-        print("IndexError has occured: Attempting to access a sequence with an")
-        print("index that is out of its range.")
-        print(f"Error: {e}")
-    except KeyError as e:
-        print("KeyError has occured: A dictionary was accessed using a key that does not exist.")
-        print(f"Error: {e}")
-    except AttributeError as e:
-        print("AttributeError has occured: An attribute or method has been accessed that")
-        print("does not exist for the particular object.")
-        print(f"Error: {e}")
+    database = Database()
+    resources = Resources()
+    model = Model(database, resources)
+
+    Controller("", model)
