@@ -11,10 +11,12 @@
 '''
 from avatar_v2_controller import Controller
 from avatar_v2_model import Model, Database, Resources
+from avatar_v2_view import Window
 
 if __name__ == "__main__":
     database = Database()
     resources = Resources()
     model = Model(database, resources)
+    view = Window()
 
-    Controller("", model)
+    Controller(view, model)
