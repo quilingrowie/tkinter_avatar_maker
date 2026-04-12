@@ -1,24 +1,49 @@
 ''' Module Name: "avatar_v2_model.py"
-    Module Description: This module primarily updates, creates, processes, reads, and writes the
-    JSON data storage as well as .png resource files according to the program's controller's
-    requests. 
+    Module Description: This module primarily manages the state of the Avatars, validates input 
+    data, handles the business logic, updates, creates, processes, reads, and writes the
+    JSON data storage.
 '''
 import json
+import random
+from enum import Enum, auto
 from pathlib import Path
 from datetime import datetime
-from PIL import Image, ImageTk
 import avatar_v2_exceptions as e
 
 BASE_DIR = Path(__file__).resolve().parent
+SUCCESS = "SUCCESS"
+FAIL = "FAIL"
 
 class Model:
     ''' This class processes and validates data received. '''
-    def __init__(self, database, resources):
+    def __init__(self, database):
+        self.__observers = []
+        self.__status = Status.EMPTY
         self.database = database
-        self.resources = resources
-        self.update_selected_assets()
+        self.selected_assets = self.process_selected_assets()
+        self.avatar_name = None
 
-    def set_selected_assets(self, selected_input: dict = None) -> dict:
+    def subscribe(self, callback):
+        ''' Adds callback to the list of subscribers to notify when Model has changed state. '''
+        self.__observers.append(callback)
+
+    def notify(self):
+        ''' Calls ghost functions of in self.__observers to update. '''
+        for callback in self.__observers:
+            callback()
+
+    @property
+    def status(self):
+        ''' Returns self.__status '''
+        return self.__status
+
+    @status.setter
+    def status(self, status):
+        ''' When called, sets self.__status to the corresponding state and calls self.notify(). '''
+        self.__status = status
+        self.notify()
+
+    def process_selected_assets(self, selected_input: dict = None) -> dict:
         ''' Receives a dictionary of selected input, re-stores its values in a specific order in
             a new dictionary, and returns the new dictionary. '''
         processed_data = {
@@ -34,67 +59,81 @@ class Model:
                         processed_data[processed_key] = selected_value
         return processed_data
 
-    def load_selected_assets(self) -> dict:
-        ''' Reads self.selected_assets and accesses its corresponding PIL object. Stores selected
-            assets with its PIL objects in a dictionary and returns it. '''
-        selected_dict = self.selected_assets.copy()
-        loaded_group = {}
-        for key, value in selected_dict.items():
-            if value == "":
-                loaded_group[key] = ""
-            else:
-                loaded_obj = self.resources.assets_images[key][value]
-                loaded_group[key] = loaded_obj
-        return loaded_group
-
     def update_selected_assets(self, selected_input: dict = None):
-        ''' Lets self.selected_assets and self.loaded_assets update its contents in parallel. '''
-        self.selected_assets = self.set_selected_assets(selected_input)
-        self.loaded_assets = self.load_selected_assets()
+        ''' Receives raw selected input, calls method to process data in a specific order then
+            sets the result to self.selected_assets. '''
+        processed_dict = self.process_selected_assets(selected_input)
+        self.selected_assets = processed_dict
+        self.status = Status.UPDATE_SUCCESS
 
-    def save_configurations_to_database(self):
-        ''' Calls a method to check if the configuration is already and appropriately raises an
-            exception, otherwise calls the method that saves the configurations to the database. '''
-        remark = self.is_configuration_already_saved()
-        if remark is True:
-            raise e.ConfigurationExists()
-        if remark is None:
-            raise e.ConfigurationEmpty()
-        if remark is False:
+    def select_random_assets(self, assets: dict):
+        ''' Receives dictionary of all assets, iterates through all categories, selects a
+            random asset for each category, then sets it to the selected assets. '''
+        randomize_dict = {}
+        for category, item in assets.items():
+            randomize_dict[category] = random.choice(list(item))
+        processed_dict = self.process_selected_assets(randomize_dict)
+        self.selected_assets = processed_dict
+        self.status = Status.RANDOMIZE_SUCCESS
+
+    def clear_selected_assets(self):
+        ''' Sets the state of selected assets empty. '''
+        self.selected_assets = self.process_selected_assets()
+        self.status = Status.EMPTY
+
+    def get_date_now(self):
+        ''' Returns the str of the current data and time. '''
+        return datetime.now().strftime("%b %d %Y | %I:%M %p")
+
+    def set_avatar_name(self, avatar_name: str):
+        ''' Sets self.avatar_name if the received name is not yet used. '''
+        self.is_name_already_used(avatar_name)
+        if self.status == Status.DISTINCT_NAME:
+            self.avatar_name = avatar_name
+
+    def save_selected_assets(self):
+        ''' Receives a name of the avatar that is to be saved, then calls a method to check if the
+            configuration is already saved, and if it's not, it will call a method to append the
+            new data to the database. '''
+        self.is_config_already_saved()
+        if self.status == Status.DISTINCT_CONFIG:
             data = self.selected_assets.copy()
-            date_saved = datetime.now()
-            date_saved_str = date_saved.strftime("%b %d %Y | %I:%M %p")
-            self.database.write_in_database(date_saved_str, data)
+            date_saved = self.get_date_now()
+            self.database.append_in_database(self.avatar_name, date_saved, data)
+            self.status = Status.SAVE_SUCCESS
 
-    def is_configuration_already_saved(self) -> bool:
+    def delete_selected_avatar(self, avatar_name: str):
+        ''' Deletes selected avatar from database. '''
+        saved_data = self.get_saved_data().copy()
+        if avatar_name in saved_data:
+            del saved_data[avatar_name]
+            self.database.update_database(saved_data)
+            self.status = Status.DELETE_SUCCESS
+
+    # validation methods:
+    def is_name_already_used(self, name):
+        ''' Checks if the name is already used in the database. '''
+        if any(item == name for item in self.get_saved_data()):
+            self.status = Status.NAME_DUPLICATE
+        else:
+            self.status = Status.DISTINCT_NAME
+
+    def is_config_already_saved(self):
         ''' Checks if the configurations stored in self.selected_assets is already saved
-            in the database and returns boolean accordingly.'''
-        if any(value != "" for value in self.selected_assets.values()):
-            if self.selected_assets in self.database.saved_data.values():
-                return True
-            return False
-        return None
+            in the database and sets the self.status accordingly. '''
+        if all(value == "" for value in self.selected_assets.values()):
+            self.status = Status.EMPTY
+        else:
+            saved_avatars = [item['configuration'] for item in self.get_saved_data().values()]
+            if self.selected_assets in saved_avatars:
+                self.status = Status.CONFIG_DUPLICATE
+            else:
+                self.status = Status.DISTINCT_CONFIG
 
     # getter methods:
     def get_saved_data(self) -> dict:
         ''' Returns self.saved_data from Database class '''
         return self.database.saved_data
-
-    def get_icons(self) -> dict:
-        ''' Returns self.icons from Resources class '''
-        return self.resources.icons
-
-    def get_backgrounds(self) -> dict:
-        ''' Returns self.backgrounds from Resources class '''
-        return self.resources.backgrounds
-
-    def get_assets_images(self) -> dict:
-        ''' Returns self.assets_images from Resources class '''
-        return self.resources.assets_images
-
-    def get_assets_icons(self) -> dict:
-        ''' Returns self.assets_icons from Resources class '''
-        return self.resources.assets_icons
 
 class Database:
     ''' Handles writing and reading of JSON file. '''
@@ -137,69 +176,33 @@ class Database:
             return saved_data
 
     @e.catch_file_handling_exceptions
-    def write_in_database(self, date_saved: str, data: dict):
-        ''' Receives string "date_saved" and dictionary "data", and creates a new key (saved_date)
-            and value (data) to be appended and saved in the JSON database. Updates self.saved_data
-            with the updated JSON file. '''
+    def append_in_database(self, avatar_name: str, date_saved: str, data: dict):
+        ''' Receives credentials to be appended and saved in the JSON database.
+            Calls a method to append the self.saved_data with the new dictionary contents. '''
+        # data structure: avatar_name = {'date_saved' = date_saved, 'configuration' = data}
         old_content = self.saved_data.copy()
-        old_content[date_saved] = data
+        old_content[avatar_name] = {}
+        old_content[avatar_name]['date_saved'] = date_saved
+        old_content[avatar_name]['configuration'] = data
+        self.update_database(old_content)
+
+    @e.catch_file_handling_exceptions
+    def update_database(self, data: dict):
+        ''' Receives a new dictionary to be saved in the JSON database, updates self.saved_data
+            with the updates JSON file. '''
         with open(self.database_filepath, 'w', encoding="utf-8") as file:
-            json.dump(old_content, file, indent=4)
+            json.dump(data, file, indent=4)
         self.saved_data = self.read_database()
 
-class Resources:
-    ''' Handles processing of ".png" files in "resources" directory into a PIL object, store them
-        in dictionaries that will be used in the GUI '''
-    def __init__(self):
-        self.resources_dirpath = self.check_resources_dirpath()
-        (self.icons, self.backgrounds,
-         self.assets_images, self.assets_icons) = self.process_resources_dir()
+class Status(Enum):
+    ''' Used for state management. '''
+    SAVE_SUCCESS = auto()
+    DELETE_SUCCESS = auto()
+    UPDATE_SUCCESS = auto()
+    RANDOMIZE_SUCCESS = auto()
 
-    def check_resources_dirpath(self) -> Path:
-        ''' Checks if "resources" folder exists within the "storage" directory, and returns its
-            filepath, otherwise raises a custom exception. '''
-        resources_dirpath = BASE_DIR / "storage" / "resources"
-        if not resources_dirpath.exists():
-            raise e.ResourcesDirectoryNotFound()
-        return resources_dirpath
-
-    def process_resources_dir(self) -> tuple[dict, dict, dict, dict]:
-        ''' Processes the folders "icons", "backgrounds", "assets" within "resources" directory,
-            otherwise raises a custom exception. '''
-        icons_dict = self.process_dir_contents(self.resources_dirpath / "icons")
-        background_dict = self.process_dir_contents(self.resources_dirpath / "backgrounds")
-        asset_images_dict, asset_icons_dict = self.check_assets_dir()
-        return icons_dict, background_dict, asset_images_dict, asset_icons_dict
-
-    def process_dir_contents(self, this_dir: Path) -> dict:
-        ''' Checks if the specified directory exists inside "resources" directory
-            and processes its png files into PIL objects, stores them in a dictionary, and
-            returns them. '''
-        if not this_dir.exists():
-            raise FileNotFoundError(
-                "FileNotFoundError occured in function process_dir_contents():\n"+
-                f"No folder {this_dir} found inside 'resources' directory."
-            )
-        processed_group = {}
-        for folder in this_dir.iterdir():
-            if folder.is_dir():
-                processed_group[folder.name] = {}
-                for item in folder.glob("*.png"):
-                    png_item = Image.open(item)
-                    png_obj = ImageTk.PhotoImage(png_item)
-                    processed_group[folder.name][item.name] = png_obj
-        return processed_group
-
-    def check_assets_dir(self) -> tuple[dict, dict]:
-        ''' Checks if "assets" folder exists within the resources directory, and calls a helper
-            function to process their contents before returning it, otherwise raises
-            FileNotFoundError. '''
-        dir_path = self.resources_dirpath / "assets"
-        if not dir_path.exists():
-            raise FileNotFoundError(
-                "FileNotFoundError occured in function check_assets_dir():\n"
-                "'assets' directory not found."
-            )
-        images_dict = self.process_dir_contents(dir_path / "images")
-        icons_dict = self.process_dir_contents(dir_path / "icons")
-        return images_dict, icons_dict
+    DISTINCT_CONFIG = auto()
+    DISTINCT_NAME = auto()
+    CONFIG_DUPLICATE = auto()
+    NAME_DUPLICATE = auto()
+    EMPTY = auto()
