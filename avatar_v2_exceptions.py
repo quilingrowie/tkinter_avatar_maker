@@ -33,17 +33,6 @@ class CustomExceptions(Exception):
     def __str__(self):
         return f"Unable to run the program:\n{self.message}"
 
-class ConfigurationExists(CustomExceptions):
-    ''' Custom exception that is raised when attempting to save selected configurations that are
-        already saved in the database. '''
-    def __init__(self):
-        super().__init__("This configuration you're trying to save already exists in the database.")
-
-class ConfigurationEmpty(CustomExceptions):
-    ''' Custom exception that is raised when attempting to save empty selected configurations. '''
-    def __init__(self):
-        super().__init__("Attempting to save empty configuration.")
-
 class ResourcesDirectoryNotFound(CustomExceptions):
     ''' Custom exception that is raised when attempting to access directory "resources" but it is
         not found. '''
