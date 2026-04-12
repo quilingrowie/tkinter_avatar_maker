@@ -21,8 +21,10 @@ MINIMUM_SCALE = 1.5
 
 class Window:
     ''' Creation class of the root window and main frames displayed in the window. '''
-    def __init__(self):
+    def __init__(self, resources):
         self.root = self.root_window()
+        self.resources = resources
+        self.selected_assets = self.select_asset()
         self.root.mainloop()
 
     def root_window(self):
@@ -38,4 +40,21 @@ class Window:
 
         return root
 
+    def select_asset(self, selected_input: dict = None):
+        ''' Takes dictionary input of selected asset items and returns them. '''
+        # edit method later
+        return selected_input
+
+    def load_selected_assets(self) -> dict:
+        ''' Reads self.selected_assets and accesses its corresponding PIL object. Stores selected
+            assets with its PIL objects in a dictionary and returns it. '''
+        selected_dict = self.selected_assets.copy()
+        loaded_group = {}
+        for key, value in selected_dict.items():
+            if value == "":
+                loaded_group[key] = ""
+            else:
+                loaded_obj = self.resources.assets_images[key][value]
+                loaded_group[key] = loaded_obj
+        return loaded_group
 # will update when design is complete
