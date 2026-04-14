@@ -11,13 +11,16 @@
 '''
 from avatar_v2_controller import Controller
 from avatar_v2_model import Model, Database
-from avatar_v2_media import Resources
-from avatar_v2_view import Window
+# from avatar_v2_media import Resources
+# from avatar_v2_view import Window
+from aavatar_v2_cli import View
 
 if __name__ == "__main__":
     database = Database()
-    resources = Resources()
+    # resources = Resources()
     model = Model(database)
-    view = Window(resources)
+    # view = Window(resources)
+    view = View(model, None)
+    controller = Controller(view, model)
 
-    Controller(view, model)
+    view.home()

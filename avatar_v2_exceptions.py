@@ -2,6 +2,7 @@
     Module Description: This module houses custom exception classes, and function decorators that
     catches errors and are raised throughout the application.
 '''
+from json.decoder import JSONDecodeError
 def catch_file_handling_exceptions(function):
     ''' A decorator function that catches errors on file handling methods/functions. '''
     def wrapper(*args, **kwargs):
@@ -22,6 +23,12 @@ def catch_file_handling_exceptions(function):
         except IsADirectoryError as error:
             raise IsADirectoryError(
                 f"IsADirectoryError occured in {function.__name__}:\n{error}"
+            ) from error
+        except JSONDecodeError as error:
+            raise JSONDecodeError(
+                f"JSONDecoderError occured in {function.__name__}:\n{error}",
+                "{'invalid': 'json'}",
+                1
             ) from error
     return wrapper
 
