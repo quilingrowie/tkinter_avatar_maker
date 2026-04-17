@@ -3,8 +3,8 @@
     GUI of the application.
 '''
 from pathlib import Path
-from PIL import Image, ImageTk
-from avatar_v2_model import BASE_DIR
+from PIL import Image
+from avatar_v2_database import BASE_DIR
 from avatar_v2_exceptions import ResourcesDirectoryNotFound
 class Resources:
     ''' Handles processing of ".png" files in "resources" directory into a PIL object, store them
@@ -45,8 +45,8 @@ class Resources:
                 processed_group[folder.name] = {}
                 for item in folder.glob("*.png"):
                     png_item = Image.open(item)
-                    png_object = ImageTk.PhotoImage(png_item)
-                    processed_group[folder.name][item.name] = png_object
+                    # png_object = ImageTk.PhotoImage(png_item)
+                    processed_group[folder.name][item.name] = png_item
         return processed_group
 
     def check_assets_dir(self) -> tuple[dict, dict]:

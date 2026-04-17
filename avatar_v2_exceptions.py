@@ -8,27 +8,17 @@ def catch_file_handling_exceptions(function):
     def wrapper(*args, **kwargs):
         try:
             return function(*args, **kwargs)
-        except FileNotFoundError as error:
-            raise FileNotFoundError(
-                f"FileNotFoundError occured in function {function.__name__}:\n{error}"
-                ) from error
-        except PermissionError as error:
-            raise PermissionError(
-                f"PermissionError occured in {function.__name__}:\n{error}"
+        except OSError as error:
+            raise DatabaseError(
+                f"DatabaseError occured in {function.__name__}:\n{error}"
             ) from error
-        except NotADirectoryError as error:
-            raise NotADirectoryError(
-                f"NotADirectoryError occured in {function.__name__}:\n{error}"
-            ) from error
-        except IsADirectoryError as error:
-            raise IsADirectoryError(
-                f"IsADirectoryError occured in {function.__name__}:\n{error}"
+        except TypeError as error:
+            raise DatabaseError(
+                f"DatabaseError occured in {function.__name__}:\n{error}"
             ) from error
         except JSONDecodeError as error:
-            raise JSONDecodeError(
-                f"JSONDecoderError occured in {function.__name__}:\n{error}",
-                "{'invalid': 'json'}",
-                1
+            raise DatabaseCorruptedError(
+                f"DatabaseCorruptedError occured in {function.__name__}:\n{error}"
             ) from error
     return wrapper
 
@@ -47,3 +37,14 @@ class ResourcesDirectoryNotFound(CustomExceptions):
         message_1 = "Directory 'resources' not found."
         message_2 = "Missing required files and/or directory for the application to run."
         super().__init__(message_1 + "\n" + message_2)
+
+class DatabaseError(CustomExceptions):
+    ''' Custom exception raised when there is an error in Database (JSON).'''
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
+
+class DatabaseCorruptedError(DatabaseError):
+    ''' A database error raised when the database file is corrupted. '''
+    def __init__(self, message="Corrupted JSON file."):
+        super().__init__(message)
